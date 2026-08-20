@@ -40,7 +40,7 @@ function requireEnv(
   env: Record<string, string | undefined>,
   key: string,
 ): string {
-  const value = env[key];
+  const value = env[key]?.trim();
   if (value === undefined || value === "") {
     throw new CredentialsError(`missing ${key}`);
   }

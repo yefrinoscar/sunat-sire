@@ -27,6 +27,23 @@ bun src/cli.ts propuesta --periodo 202507 --out propuesta-202507.zip
 
 Success prints JSON on stdout. Failures print `{"ok":false,"error":"..."}` and exit 1.
 
+## Cloudflare Worker
+
+Live URL for the SUNAT app field:
+
+`https://sunat-sire.yefri.workers.dev`
+
+That URL is metadata for SOL. Calls still go Worker → `api-sire.sunat.gob.pe`. The Worker does not fix `unauthorized_client`. MIGE still has to be ticked on ZENTOFACT.
+
+```
+curl https://sunat-sire.yefri.workers.dev/health
+curl -H "Authorization: Bearer $API_KEY" https://sunat-sire.yefri.workers.dev/periodos
+curl -H "Authorization: Bearer $API_KEY" -o propuesta.zip \
+  "https://sunat-sire.yefri.workers.dev/propuesta?periodo=202607"
+```
+
+`API_KEY` is a Worker secret. It lives in `.env` locally, not in git.
+
 ## Tests
 
 ```

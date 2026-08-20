@@ -1,6 +1,8 @@
+import { mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { parseCredentials } from "./credentials.ts";
 import { parsePeriodo } from "./periodo.ts";
-import { listPeriodos, requestPropuesta } from "./sire.ts";
+import { fetchPropuesta, listPeriodos } from "./sire.ts";
 
 const USAGE =
   "usage: bun src/cli.ts periodos | bun src/cli.ts propuesta --periodo YYYYMM [--out path]";
@@ -25,8 +27,21 @@ async function main(argv: string[]): Promise<void> {
     const periodo = parsePeriodo(rawPeriodo);
     const outPath = flags.get("out") ?? `./propuesta-${periodo}.zip`;
     const credentials = parseCredentials(process.env);
-    const result = await requestPropuesta({ credentials, periodo, outPath });
-    print({ ok: true, ...result });
+    const result = await fetchPropuesta({ credentials, periodo });
+    if (result.kind === "empty") {
+      print({ ok: true, kind: "empty", ticket: result.ticket });
+      return;
+    }
+    await mkdir(dirname(outPath) || ".", { recursive: true });
+    await Bun.write(outPath, result.bytes);
+    print({
+      ok: true,
+      kind: "file",
+      path: outPath,
+      bytes: result.bytes.byteLength,
+      nomArchivo: result.nomArchivo,
+      ticket: result.ticket,
+    });
     return;
   }
   throw new CliError(USAGE);

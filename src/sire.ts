@@ -1,5 +1,3 @@
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
 import { oauthUsername, type Credentials } from "./credentials.ts";
 import type { Periodo } from "./periodo.ts";
 import { parseSunatTicket, type TicketState } from "./ticket.ts";
@@ -12,8 +10,8 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const POLL_DELAY_START_MS = 2000;
 const POLL_DELAY_CAP_MS = 15000;
 
-export type PropuestaResult =
-  | { kind: "file"; path: string; bytes: number; nomArchivo: string; ticket: string }
+export type FetchedPropuesta =
+  | { kind: "file"; bytes: Uint8Array; nomArchivo: string; ticket: string }
   | { kind: "empty"; ticket: string };
 
 export class SireError extends Error {
@@ -39,12 +37,11 @@ export async function listPeriodos(
   return parsePeriodosPayload(payload);
 }
 
-export async function requestPropuesta(input: {
+export async function fetchPropuesta(input: {
   credentials: Credentials;
   periodo: Periodo;
-  outPath: string;
   clock?: Clock;
-}): Promise<PropuestaResult> {
+}): Promise<FetchedPropuesta> {
   const clock = input.clock ?? defaultClock;
   const token = await getToken(input.credentials);
   const ticket = await startPropuesta(token, input.periodo);
@@ -57,12 +54,9 @@ export async function requestPropuesta(input: {
         codTipoArchivoReporte: state.archivo.codTipoArchivoReporte,
         periodo: input.periodo,
       });
-      await mkdir(dirname(input.outPath) || ".", { recursive: true });
-      await Bun.write(input.outPath, bytes);
       return {
         kind: "file",
-        path: input.outPath,
-        bytes: bytes.byteLength,
+        bytes,
         nomArchivo: state.archivo.nomArchivoReporte,
         ticket: state.ticket,
       };

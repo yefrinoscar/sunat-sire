@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { parseCredentials } from "./credentials.ts";
 import { parsePeriodo } from "./periodo.ts";
-import { requestPropuesta } from "./sire.ts";
+import { fetchPropuesta } from "./sire.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -29,7 +26,7 @@ describe("parseCredentials", () => {
   });
 });
 
-describe("requestPropuesta", () => {
+describe("fetchPropuesta", () => {
   test("token then exportapropuesta then poll 06 then zip bytes", async () => {
     const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]);
     const calls: { url: string; authorization: string | null }[] = [];
@@ -72,38 +69,28 @@ describe("requestPropuesta", () => {
       throw new Error(`unexpected url ${url}`);
     };
 
-    const dir = await mkdtemp(join(tmpdir(), "sire-"));
-    const outPath = join(dir, "propuesta-202507.zip");
-    try {
-      const result = await requestPropuesta({
-        credentials: parseCredentials({
-          SUNAT_CLIENT_ID: "id",
-          SUNAT_CLIENT_SECRET: "secret",
-          SUNAT_RUC: "20123456789",
-          SUNAT_SOL_USER: "USER1",
-          SUNAT_SOL_PASSWORD: "pass",
-        }),
-        periodo: parsePeriodo("202507"),
-        outPath,
-      });
+    const result = await fetchPropuesta({
+      credentials: parseCredentials({
+        SUNAT_CLIENT_ID: "id",
+        SUNAT_CLIENT_SECRET: "secret",
+        SUNAT_RUC: "20123456789",
+        SUNAT_SOL_USER: "USER1",
+        SUNAT_SOL_PASSWORD: "pass",
+      }),
+      periodo: parsePeriodo("202507"),
+    });
 
-      const propuestaCall = calls.find((c) => c.url.includes("exportapropuesta"));
-      expect(propuestaCall).toBeDefined();
-      expect(propuestaCall?.url).toContain("exportapropuesta");
-      expect(propuestaCall?.authorization).toBe("Bearer tok-abc");
-
-      expect(result).toEqual({
-        kind: "file",
-        path: outPath,
-        bytes: zipBytes.byteLength,
-        nomArchivo: "LE202507.zip",
-        ticket: "T1",
-      });
-      const written = await readFile(outPath);
-      expect(written).toEqual(Buffer.from(zipBytes));
-    } finally {
-      await rm(dir, { recursive: true, force: true });
+    const propuestaCall = calls.find((c) => c.url.includes("exportapropuesta"));
+    expect(propuestaCall).toBeDefined();
+    expect(propuestaCall?.url).toContain("exportapropuesta");
+    expect(propuestaCall?.authorization).toBe("Bearer tok-abc");
+    expect(result.kind).toBe("file");
+    if (result.kind !== "file") {
+      throw new Error("expected file");
     }
+    expect(result.ticket).toBe("T1");
+    expect(result.nomArchivo).toBe("LE202507.zip");
+    expect(result.bytes).toEqual(zipBytes);
   });
 });
 
