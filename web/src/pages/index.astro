@@ -13,41 +13,62 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 const years = [...new Set(items.map((i) => i.year))];
+const current = items.find((i) => i.enCurso);
 ---
 <Layout title="SIRE · periodos">
   <h1>Periodos RVIE</h1>
   {error ? (
     <p class="err">{error}</p>
   ) : (
-    years.map((year) => (
-      <section>
-        <h2>{year}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Periodo</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.filter((i) => i.year === year).map((i) => (
+    <>
+      {current ? (
+        <p class="banner">
+          Periodo en curso: <a href={`/periodo/${current.perTributario}`}>{months[Number(current.month)]} {current.year}</a>
+          <span class:list={["badge", "wait"]}>{current.labelEstado}</span>
+          — propuesta SUNAT, aún no generado
+        </p>
+      ) : null}
+      {years.map((year) => (
+        <section>
+          <h2>{year}</h2>
+          <table>
+            <thead>
               <tr>
-                <td>{months[Number(i.month)] ?? i.month} {i.year}</td>
-                <td>
-                  <span class:list={["badge", i.presentado ? "ok" : "wait"]}>{i.desEstado}</span>
-                </td>
-                <td><a href={`/periodo/${i.perTributario}`}>Ver registros</a></td>
+                <th>Periodo</th>
+                <th>Estado SIRE</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    ))
+            </thead>
+            <tbody>
+              {items.filter((i) => i.year === year).map((i) => (
+                <tr class:list={[i.enCurso && "current"]}>
+                  <td>{months[Number(i.month)] ?? i.month} {i.year}</td>
+                  <td>
+                    <span class:list={["badge", i.presentado ? "ok" : "wait"]}>{i.labelEstado}</span>
+                  </td>
+                  <td><a href={`/periodo/${i.perTributario}`}>Ver propuesta</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))}
+    </>
   )}
 </Layout>
 
 <style>
   h2 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
   section + section { margin-top: 0.5rem; }
+  .banner {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 0.8rem 1rem;
+    margin: 0 0 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  tr.current td { background: #f3ead6; }
 </style>

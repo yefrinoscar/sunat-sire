@@ -12,11 +12,41 @@ export type RvieRow = {
   total: string;
   moneda: string;
   estado: string;
+  exonerado: string;
+  inafecto: string;
+  exportacion: string;
 };
 
 export type RvieTable = {
   txtName: string;
   rows: RvieRow[];
+};
+
+export type TipoKpi = {
+  codigo: string;
+  label: string;
+  count: number;
+  bi: number;
+  igv: number;
+  total: number;
+};
+
+export type RvieKpis = {
+  count: number;
+  facturas: TipoKpi;
+  boletas: TipoKpi;
+  notasCredito: TipoKpi;
+  notasDebito: TipoKpi;
+  otros: TipoKpi;
+  bi: number;
+  igv: number;
+  total: number;
+  netoBi: number;
+  netoIgv: number;
+  netoTotal: number;
+  exonerado: number;
+  inafecto: number;
+  exportacion: number;
 };
 
 const COL = {
@@ -31,7 +61,86 @@ const COL = {
   total: "Total CP",
   moneda: "Moneda",
   estado: "Est. Comp",
+  exonerado: "Mto Exonerado",
+  inafecto: "Mto Inafecto",
+  exportacion: "Valor Facturado Exportación",
 } as const;
+
+export function tipoLabel(tipo: string): string {
+  if (tipo === "01") return "Factura";
+  if (tipo === "03") return "Boleta";
+  if (tipo === "07") return "N. crédito";
+  if (tipo === "08") return "N. débito";
+  return tipo;
+}
+
+export function money(n: number): string {
+  return n.toLocaleString("es-PE", { style: "currency", currency: "PEN" });
+}
+
+export function summarizeRvie(rows: RvieRow[]): RvieKpis {
+  const empty = (codigo: string): TipoKpi => ({
+    codigo,
+    label: tipoLabel(codigo),
+    count: 0,
+    bi: 0,
+    igv: 0,
+    total: 0,
+  });
+  const facturas = empty("01");
+  const boletas = empty("03");
+  const notasCredito = empty("07");
+  const notasDebito = empty("08");
+  const otros = empty("");
+  otros.label = "Otros";
+  let exonerado = 0;
+  let inafecto = 0;
+  let exportacion = 0;
+  for (const row of rows) {
+    const bucket =
+      row.tipo === "01"
+        ? facturas
+        : row.tipo === "03"
+          ? boletas
+          : row.tipo === "07"
+            ? notasCredito
+            : row.tipo === "08"
+              ? notasDebito
+              : otros;
+    bucket.count += 1;
+    bucket.bi += num(row.bi);
+    bucket.igv += num(row.igv);
+    bucket.total += num(row.total);
+    exonerado += num(row.exonerado);
+    inafecto += num(row.inafecto);
+    exportacion += num(row.exportacion);
+  }
+  const bi = facturas.bi + boletas.bi + notasDebito.bi + otros.bi;
+  const igv = facturas.igv + boletas.igv + notasDebito.igv + otros.igv;
+  const total = facturas.total + boletas.total + notasDebito.total + otros.total;
+  return {
+    count: rows.length,
+    facturas,
+    boletas,
+    notasCredito,
+    notasDebito,
+    otros,
+    bi,
+    igv,
+    total,
+    netoBi: bi - notasCredito.bi,
+    netoIgv: igv - notasCredito.igv,
+    netoTotal: total - notasCredito.total,
+    exonerado,
+    inafecto,
+    exportacion,
+  };
+}
+
+function num(raw: string): number {
+  const n = Number(raw.replace(",", ""));
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function parseRvieZip(bytes: Uint8Array): RvieTable {
   const files = unzipSync(bytes);
@@ -66,6 +175,9 @@ export function parseRvieZip(bytes: Uint8Array): RvieTable {
       total: cell(cells, index(COL.total)),
       moneda: cell(cells, index(COL.moneda)),
       estado: cell(cells, index(COL.estado)),
+      exonerado: cell(cells, index(COL.exonerado)),
+      inafecto: cell(cells, index(COL.inafecto)),
+      exportacion: cell(cells, index(COL.exportacion)),
     });
   }
   return { txtName, rows };
