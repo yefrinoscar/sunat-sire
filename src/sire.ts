@@ -53,6 +53,8 @@ export async function fetchPropuesta(input: {
         nomArchivoReporte: state.archivo.nomArchivoReporte,
         codTipoArchivoReporte: state.archivo.codTipoArchivoReporte,
         periodo: input.periodo,
+        codProceso: state.archivo.codProceso,
+        numTicket: state.ticket,
       });
       return {
         kind: "file",
@@ -150,13 +152,19 @@ async function downloadReporte(input: {
   nomArchivoReporte: string;
   codTipoArchivoReporte: string;
   periodo: Periodo;
+  codProceso?: string;
+  numTicket: string;
 }): Promise<Uint8Array> {
   const params = new URLSearchParams({
     nomArchivoReporte: input.nomArchivoReporte,
     codTipoArchivoReporte: input.codTipoArchivoReporte,
     codLibro: COD_LIBRO_RVIE,
     perTributario: input.periodo,
+    numTicket: input.numTicket,
   });
+  if (input.codProceso !== undefined) {
+    params.set("codProceso", input.codProceso);
+  }
   const url = `${SIRE_URL}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte?${params}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${input.token}` },
@@ -176,7 +184,11 @@ async function downloadReporte(input: {
 
 async function getJson(url: string, token: string): Promise<unknown> {
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
   });
   const payload = await readJson(res);
   if (!res.ok) {
@@ -206,6 +218,11 @@ async function readJson(res: Response): Promise<unknown> {
     const parsed: unknown = JSON.parse(text);
     return parsed;
   } catch {
+    if (res.status === 401 && text.toLowerCase().includes("authorization required")) {
+      throw new SireError(
+        "SUNAT nginx 401 on api-sire. Token is valid. Check Alcance Desktop on the MIGE app and Save.",
+      );
+    }
     throw new SireError(`invalid JSON from SUNAT (HTTP ${res.status})`);
   }
 }

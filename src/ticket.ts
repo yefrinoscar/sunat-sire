@@ -151,10 +151,15 @@ function parseArchivo(
     return undefined;
   }
   // SUNAT responses misspell this as codTipoAchivoReporte.
-  const codTipoArchivoReporte =
+  // File type is 0/1/2. Status codes are padded to two digits; this field is not.
+  const rawTipo =
     readString(first, "codTipoArchivoReporte") ??
     readString(first, "codTipoAchivoReporte") ??
     "0";
+  const asNumber = Number(rawTipo);
+  const codTipoArchivoReporte = Number.isFinite(asNumber)
+    ? String(asNumber)
+    : rawTipo;
   const codProceso =
     readString(first, "codProceso") ?? readString(registro, "codProceso");
   if (codProceso === undefined) {

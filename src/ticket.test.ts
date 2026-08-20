@@ -123,6 +123,29 @@ describe("parseSunatTicket", () => {
     expect(state.periodo).toBe("202507");
   });
 
+  test("normalizes file type 00 to 0", () => {
+    const state = parseSunatTicket({
+      registros: [
+        {
+          numTicket: "T8",
+          codEstadoProceso: "06",
+          perTributario: "202507",
+          archivoReporte: [
+            {
+              nomArchivoReporte: "LE.zip",
+              codTipoArchivoReporte: "00",
+            },
+          ],
+        },
+      ],
+    });
+    expect(state.kind).toBe("ready");
+    if (state.kind !== "ready") {
+      throw new Error("expected ready");
+    }
+    expect(state.archivo.codTipoArchivoReporte).toBe("0");
+  });
+
   test("accepts typo field codTipoAchivoReporte", () => {
     const state = parseSunatTicket({
       registros: [
