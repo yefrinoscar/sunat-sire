@@ -1,7 +1,10 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import {
+  buildPresentationPlan,
   fetchPropuestaCached,
+  flattenPeriodos,
+  listPeriodos,
   money,
   parsePeriodo,
   parseRvieZip,
@@ -18,11 +21,16 @@ let title = `Periodo ${raw}`;
 let error: string | undefined;
 let emptyTicket: string | undefined;
 let table: ReturnType<typeof parseRvieZip> | undefined;
+let alreadyGenerated = false;
 
 try {
   const periodo = parsePeriodo(raw);
   title = `${months[Number(raw.slice(4, 6))] ?? raw} ${raw.slice(0, 4)}`;
   const credentials = serverCredentials();
+  const listed = flattenPeriodos(await listPeriodos(credentials)).find(
+    (i) => i.perTributario === raw,
+  );
+  alreadyGenerated = listed?.presentado ?? false;
   const result = await fetchPropuestaCached({ credentials, periodo });
   if (result.kind === "empty") {
     emptyTicket = result.ticket;
@@ -34,6 +42,13 @@ try {
 }
 
 const kpis = table ? summarizeRvie(table.rows) : undefined;
+const plan = /^\d{6}$/.test(raw)
+  ? buildPresentationPlan({
+      periodo: raw,
+      alreadyGenerated,
+      rvieHasRows: (table?.rows.length ?? 0) > 0,
+    })
+  : undefined;
 const prev = /^\d{6}$/.test(raw) ? shiftPeriodo(raw, -1) : undefined;
 let next: string | undefined;
 if (/^\d{6}$/.test(raw)) {
@@ -50,6 +65,25 @@ if (/^\d{6}$/.test(raw)) {
     {next ? <a href={`/periodo/${next}`}>{next} →</a> : <span>mes en curso</span>}
   </p>
   <h1>{title}</h1>
+  {plan ? (
+    <section class="presentar">
+      <h2>Para presentar</h2>
+      <p>
+        Esta pantalla no envía nada a SUNAT. “Presentar” en SIRE no es el IGV:
+        es generar el RVIE y el RCE. Si aceptás la propuesta, esos comprobantes
+        quedan en el libro. Después el 621 usa las casillas.
+      </p>
+      <ol>
+        {plan.steps.map((step) => (
+          <li class={step.state}>
+            <strong>{step.title}</strong>
+            <span class="st">{step.state === "done" ? "listo" : step.state === "later" ? "aún no" : step.state === "ready" ? "pendiente" : "falta"}</span>
+            <p>{step.detail}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  ) : null}
   {error ? (
     <p class="err">{error}</p>
   ) : emptyTicket ? (
@@ -162,4 +196,29 @@ if (/^\d{6}$/.test(raw)) {
   .kpis p { margin: 0; color: var(--muted); font-size: 0.85rem; }
   .wrap { overflow-x: auto; }
   table { min-width: 900px; }
+  .presentar {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 1rem 1.1rem;
+    margin: 0 0 1.25rem;
+  }
+  .presentar h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+  .presentar > p { margin: 0 0 0.8rem; color: var(--muted); }
+  .presentar ol { margin: 0; padding: 0; list-style: none; }
+  .presentar li {
+    border-top: 1px solid var(--line);
+    padding: 0.65rem 0;
+  }
+  .presentar li strong { display: inline; }
+  .presentar .st {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .presentar li.done .st { color: var(--ok); }
+  .presentar li.later .st { color: var(--wait); }
+  .presentar li p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.92rem; }
 </style>
+
