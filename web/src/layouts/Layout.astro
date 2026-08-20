@@ -1,0 +1,91 @@
+---
+type Props = { title: string };
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header>
+      <a href="/" class="brand">SIRE · RVIE</a>
+      <span class="sub">Registro de ventas e ingresos</span>
+    </header>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #f4f1ea;
+    --ink: #1c1915;
+    --muted: #6b6458;
+    --line: #d9d2c5;
+    --paper: #fffcf6;
+    --ok: #1f6b3a;
+    --wait: #8a5a12;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.45;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .sub { color: var(--muted); font-size: 0.95rem; }
+  main { padding: 1.5rem; max-width: 1200px; }
+  h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 1rem; }
+  a { color: var(--ink); }
+  .err {
+    background: #f8e4de;
+    border: 1px solid #e2b4a8;
+    padding: 0.85rem 1rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .badge {
+    font-size: 0.78rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--line);
+  }
+  .badge.ok { color: var(--ok); border-color: #b7d4c0; }
+  .badge.wait { color: var(--wait); border-color: #e2d0a8; }
+  .meta { color: var(--muted); margin: 0 0 1rem; }
+</style>

@@ -10,6 +10,16 @@ The SOL app must have URI **MIGE RCE y RVIE - SIRE**. Edit the app in Empresas â
 
 OAuth username is `SUNAT_RUC` plus `SUNAT_SOL_USER` with no space. The CLI builds that string. You do not set it yourself.
 
+## Web (Astro)
+
+Server-side UI. Credentials stay in `.env`. The browser never sees them.
+
+```
+bun run web
+```
+
+Open http://localhost:4321 â€” period list, then a period for the RVIE rows. First load of a period talks to SUNAT and can take about a minute.
+
 ## List periodos
 
 ```

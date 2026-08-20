@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "start": "bun src/cli.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "web": "astro dev --root web --port 4321 --host"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.4",
+    "astro": "^7.2.4",
+    "fflate": "^0.8.3"
   }
 }

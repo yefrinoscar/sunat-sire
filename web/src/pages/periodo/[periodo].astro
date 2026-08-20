@@ -1,0 +1,102 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import {
+  fetchPropuestaCached,
+  parsePeriodo,
+  parseRvieZip,
+  serverCredentials,
+} from "../../lib/sire.ts";
+
+const raw = Astro.params.periodo ?? "";
+const months = ["", "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+function tipoLabel(tipo: string): string {
+  if (tipo === "01") return "Factura";
+  if (tipo === "03") return "Boleta";
+  if (tipo === "07") return "N. crédito";
+  if (tipo === "08") return "N. débito";
+  return tipo;
+}
+
+let title = `Periodo ${raw}`;
+let error: string | undefined;
+let emptyTicket: string | undefined;
+let table: ReturnType<typeof parseRvieZip> | undefined;
+let ticket: string | undefined;
+let zipName: string | undefined;
+let zipBytes = 0;
+
+try {
+  const periodo = parsePeriodo(raw);
+  title = `${months[Number(raw.slice(4, 6))] ?? raw} ${raw.slice(0, 4)}`;
+  const credentials = serverCredentials();
+  const result = await fetchPropuestaCached({ credentials, periodo });
+  if (result.kind === "empty") {
+    emptyTicket = result.ticket;
+  } else {
+    table = parseRvieZip(result.bytes);
+    ticket = result.ticket;
+    zipName = result.nomArchivo;
+    zipBytes = result.bytes.byteLength;
+  }
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const total = table?.rows.reduce((s, r) => s + Number(r.total || 0), 0) ?? 0;
+---
+<Layout title={`SIRE · ${title}`}>
+  <p class="meta"><a href="/">← Periodos</a></p>
+  <h1>{title}</h1>
+  {error ? (
+    <p class="err">{error}</p>
+  ) : emptyTicket ? (
+    <p>SUNAT no devolvió comprobantes para este periodo. Ticket {emptyTicket}.</p>
+  ) : table ? (
+    <>
+      <p class="meta">
+        {table.rows.length} comprobantes · total {total.toLocaleString("es-PE", { style: "currency", currency: "PEN" })}
+        · ticket {ticket}
+        · <a href={`/periodo/${raw}/zip`}>Descargar ZIP</a>
+        ({zipName}, {zipBytes} bytes)
+      </p>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Serie</th>
+              <th>N°</th>
+              <th>Cliente</th>
+              <th>Doc</th>
+              <th>BI</th>
+              <th>IGV</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((r) => (
+              <tr>
+                <td>{r.fecha}</td>
+                <td>{tipoLabel(r.tipo)}</td>
+                <td>{r.serie}</td>
+                <td>{r.numero}</td>
+                <td>{r.cliente}</td>
+                <td class="num">{r.doc}</td>
+                <td class="num">{r.bi}</td>
+                <td class="num">{r.igv}</td>
+                <td class="num">{r.total} {r.moneda}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  ) : null}
+</Layout>
+
+<style>
+  .wrap { overflow-x: auto; }
+  table { min-width: 900px; }
+</style>
