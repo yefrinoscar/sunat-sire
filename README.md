@@ -6,6 +6,8 @@ GET-only CLI for SUNAT SIRE RVIE ingresos.
 
 Copy `.env.example` to `.env` and fill in your SOL credentials.
 
+The SOL app must have URI **MIGE RCE y RVIE - SIRE**. Edit the app in Empresas → Credenciales de API SUNAT if token returns `unauthorized_client`.
+
 OAuth username is `SUNAT_RUC` plus `SUNAT_SOL_USER` with no space. The CLI builds that string. You do not set it yourself.
 
 ## List periodos

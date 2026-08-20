@@ -15,16 +15,20 @@ export type TicketState =
 const ERROR_CODES = new Set(["03", "07", "10"]);
 const EMPTY_NAME_MARKERS = ["sin datos", "vacio", "vacío"] as const;
 
-export function parseSunatTicket(input: unknown): TicketState {
+export function parseSunatTicket(
+  input: unknown,
+  expected?: { ticket?: string; periodo?: Periodo },
+): TicketState {
+  const fallbackTicket = expected?.ticket ?? ticketOf(input);
   const registros = registrosOf(input);
   if (registros === undefined) {
-    return processing(ticketOf(input), "", "");
+    return processing(fallbackTicket, "", "");
   }
-  const registro = firstRecord(registros);
+  const registro = pickRecord(registros, expected?.ticket) ?? firstRecord(registros);
   if (registro === undefined) {
-    return processing(ticketOf(input), "", "");
+    return processing(fallbackTicket, "", "");
   }
-  const ticket = readString(registro, "numTicket") ?? ticketOf(input);
+  const ticket = readString(registro, "numTicket") ?? fallbackTicket;
   const detalle = isRecord(registro.detalleTicket)
     ? registro.detalleTicket
     : undefined;
@@ -54,7 +58,7 @@ export function parseSunatTicket(input: unknown): TicketState {
   if (archivo === undefined) {
     return { kind: "empty", ticket };
   }
-  const periodo = periodoOf(registro, input);
+  const periodo = periodoOf(registro, input) ?? expected?.periodo;
   if (periodo === undefined) {
     return processing(ticket, code, desc);
   }
@@ -88,6 +92,21 @@ function firstRecord(
 ): Record<string, unknown> | undefined {
   const first = registros[0];
   return isRecord(first) ? first : undefined;
+}
+
+function pickRecord(
+  registros: unknown[],
+  ticket: string | undefined,
+): Record<string, unknown> | undefined {
+  if (ticket === undefined || ticket === "") {
+    return undefined;
+  }
+  for (const item of registros) {
+    if (isRecord(item) && readString(item, "numTicket") === ticket) {
+      return item;
+    }
+  }
+  return undefined;
 }
 
 function ticketOf(input: unknown): string {

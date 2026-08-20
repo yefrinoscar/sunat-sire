@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { parsePeriodo } from "./periodo.ts";
 import { parseSunatTicket } from "./ticket.ts";
 
 describe("parseSunatTicket", () => {
@@ -70,6 +71,56 @@ describe("parseSunatTicket", () => {
       code: "",
       desc: "",
     });
+  });
+
+  test("picks the matching ticket among registros", () => {
+    const state = parseSunatTicket(
+      {
+        registros: [
+          {
+            numTicket: "OTHER",
+            codEstadoProceso: "03",
+            perTributario: "202507",
+          },
+          {
+            numTicket: "T6",
+            codEstadoProceso: "06",
+            perTributario: "202507",
+            archivoReporte: [
+              { nomArchivoReporte: "LE202507.zip", codTipoArchivoReporte: "0" },
+            ],
+          },
+        ],
+      },
+      { ticket: "T6" },
+    );
+    expect(state.kind).toBe("ready");
+    if (state.kind !== "ready") {
+      throw new Error("expected ready");
+    }
+    expect(state.ticket).toBe("T6");
+  });
+
+  test("uses expected periodo when SUNAT omits perTributario", () => {
+    const state = parseSunatTicket(
+      {
+        registros: [
+          {
+            numTicket: "T7",
+            codEstadoProceso: "06",
+            archivoReporte: [
+              { nomArchivoReporte: "LE.zip", codTipoArchivoReporte: "0" },
+            ],
+          },
+        ],
+      },
+      { ticket: "T7", periodo: parsePeriodo("202507") },
+    );
+    expect(state.kind).toBe("ready");
+    if (state.kind !== "ready") {
+      throw new Error("expected ready");
+    }
+    expect(state.periodo).toBe("202507");
   });
 
   test("accepts typo field codTipoAchivoReporte", () => {

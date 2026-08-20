@@ -139,7 +139,7 @@ async function pollUntilTerminal(
       `?numTicket=${encodeURIComponent(ticket)}` +
       `&perIni=${periodo}&perFin=${periodo}&page=1&perPage=20`;
     const payload = await getJson(url, token);
-    const state = parseSunatTicket(payload);
+    const state = parseSunatTicket(payload, { ticket, periodo });
     if (state.kind !== "processing") {
       return state;
     }
