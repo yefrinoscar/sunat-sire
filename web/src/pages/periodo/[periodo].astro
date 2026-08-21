@@ -7,9 +7,11 @@ import {
   listPeriodos,
   money,
   parsePeriodo,
+  parseRceZip,
   parseRvieZip,
   serverCredentials,
   shiftPeriodo,
+  summarizeRce,
   summarizeRvie,
   tipoLabel,
 } from "../../lib/sire.ts";
@@ -21,32 +23,43 @@ let title = `Periodo ${raw}`;
 let error: string | undefined;
 let emptyTicket: string | undefined;
 let table: ReturnType<typeof parseRvieZip> | undefined;
+let compras: ReturnType<typeof parseRceZip> | undefined;
+let rceLoaded = false;
 let alreadyGenerated = false;
 
 try {
   const periodo = parsePeriodo(raw);
   title = `${months[Number(raw.slice(4, 6))] ?? raw} ${raw.slice(0, 4)}`;
   const credentials = serverCredentials();
-  const listed = flattenPeriodos(await listPeriodos(credentials)).find(
-    (i) => i.perTributario === raw,
-  );
+  const [listedRaw, ventasResult, comprasResult] = await Promise.all([
+    listPeriodos(credentials),
+    fetchPropuestaCached({ credentials, periodo, libro: "rvie" }),
+    fetchPropuestaCached({ credentials, periodo, libro: "rce" }),
+  ]);
+  const listed = flattenPeriodos(listedRaw).find((i) => i.perTributario === raw);
   alreadyGenerated = listed?.presentado ?? false;
-  const result = await fetchPropuestaCached({ credentials, periodo });
-  if (result.kind === "empty") {
-    emptyTicket = result.ticket;
+  if (ventasResult.kind === "empty") {
+    emptyTicket = ventasResult.ticket;
   } else {
-    table = parseRvieZip(result.bytes);
+    table = parseRvieZip(ventasResult.bytes);
+  }
+  rceLoaded = true;
+  if (comprasResult.kind === "file") {
+    compras = parseRceZip(comprasResult.bytes);
   }
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }
 
 const kpis = table ? summarizeRvie(table.rows) : undefined;
+const comprasKpis = compras ? summarizeRce(compras.rows) : undefined;
 const plan = /^\d{6}$/.test(raw)
   ? buildPresentationPlan({
       periodo: raw,
       alreadyGenerated,
       rvieHasRows: (table?.rows.length ?? 0) > 0,
+      rceLoaded,
+      rceHasRows: (compras?.rows.length ?? 0) > 0,
     })
   : undefined;
 const prev = /^\d{6}$/.test(raw) ? shiftPeriodo(raw, -1) : undefined;
@@ -86,10 +99,11 @@ if (/^\d{6}$/.test(raw)) {
   ) : null}
   {error ? (
     <p class="err">{error}</p>
-  ) : emptyTicket ? (
-    <p>SUNAT no devolvió comprobantes para este periodo.</p>
-  ) : table && kpis ? (
+  ) : !table && !compras ? (
+    <p>SUNAT no devolvió comprobantes de ventas ni compras para este periodo.{emptyTicket ? ` Ticket ${emptyTicket}.` : ""}</p>
+  ) : (
     <>
+      {kpis ? (
       <section class="kpis">
         <article>
           <h2>Facturas</h2>
@@ -122,15 +136,43 @@ if (/^\d{6}$/.test(raw)) {
           <p>neto a declarar {money(kpis.netoTotal)}</p>
         </article>
       </section>
-      {(kpis.exonerado > 0 || kpis.inafecto > 0 || kpis.exportacion > 0) ? (
+      ) : null}
+      {kpis && (kpis.exonerado > 0 || kpis.inafecto > 0 || kpis.exportacion > 0) ? (
         <p class="meta">
           Exonerado {money(kpis.exonerado)} · inafecto {money(kpis.inafecto)} · exportación {money(kpis.exportacion)}
         </p>
       ) : null}
       <p class="meta">
-        {kpis.count} comprobantes
-        · <a href={`/periodo/${raw}/zip`}>Descargar ZIP SUNAT</a>
+        {kpis ? `${kpis.count} ventas` : "sin ventas"}
+        · <a href={`/periodo/${raw}/zip`}>ZIP ventas</a>
+        {compras ? (
+          <>
+            · {compras.rows.length} compras
+            · <a href={`/periodo/${raw}/zip?libro=rce`}>ZIP compras</a>
+          </>
+        ) : null}
       </p>
+      {compras && comprasKpis ? (
+        <section class="kpis">
+          <article>
+            <h2>Compras facturas</h2>
+            <p class="big">{comprasKpis.facturas}</p>
+            <p>crédito fiscal (IGV neto) {money(comprasKpis.igv)}</p>
+          </article>
+          <article>
+            <h2>Compras boletas</h2>
+            <p class="big">{comprasKpis.boletas}</p>
+          </article>
+          <article>
+            <h2>BI compras</h2>
+            <p class="big">{money(comprasKpis.bi)}</p>
+            <p>total {money(comprasKpis.total)}</p>
+          </article>
+        </section>
+      ) : null}
+      {table ? (
+      <>
+      <h2 class="block">Ventas (RVIE)</h2>
       <div class="wrap">
         <table>
           <thead>
@@ -163,8 +205,47 @@ if (/^\d{6}$/.test(raw)) {
           </tbody>
         </table>
       </div>
+      </>
+      ) : null}
+      {compras ? (
+        <>
+          <h2 class="block">Compras (RCE)</h2>
+          <div class="wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Serie</th>
+                  <th>N°</th>
+                  <th>Proveedor</th>
+                  <th>Doc</th>
+                  <th>BI</th>
+                  <th>IGV</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compras.rows.map((r) => (
+                  <tr>
+                    <td>{r.fecha}</td>
+                    <td>{tipoLabel(r.tipo)}</td>
+                    <td>{r.serie}</td>
+                    <td>{r.numero}</td>
+                    <td>{r.proveedor}</td>
+                    <td class="num">{r.doc}</td>
+                    <td class="num">{r.bi}</td>
+                    <td class="num">{r.igv}</td>
+                    <td class="num">{r.total} {r.moneda}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
     </>
-  ) : null}
+  )}
 </Layout>
 
 <style>
@@ -196,6 +277,7 @@ if (/^\d{6}$/.test(raw)) {
   .kpis p { margin: 0; color: var(--muted); font-size: 0.85rem; }
   .wrap { overflow-x: auto; }
   table { min-width: 900px; }
+  h2.block { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
   .presentar {
     background: var(--paper);
     border: 1px solid var(--line);

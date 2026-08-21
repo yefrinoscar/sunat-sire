@@ -32,13 +32,16 @@ export function buildPresentationPlan(input: {
   periodo: string;
   alreadyGenerated: boolean;
   rvieHasRows: boolean;
+  rceLoaded?: boolean;
+  rceHasRows?: boolean;
   today?: Date;
 }): PresentationPlan {
   const today = input.today ?? new Date();
   const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const opens = preliminarOpenDate(input.periodo);
   const preliminarOpen = startToday.getTime() >= opens.getTime();
-  const rceLoaded = false;
+  const rceLoaded = input.rceLoaded ?? false;
+  const rceHasRows = input.rceHasRows ?? false;
   const steps: PresentationStep[] = [
     {
       id: "rvie",
@@ -51,9 +54,12 @@ export function buildPresentationPlan(input: {
     {
       id: "rce",
       title: "2. Revisar propuesta RCE (compras)",
-      detail:
-        "La generación SIRE es conjunta: RVIE y RCE se cierran juntos. Esta app todavía no baja compras. Falta esa propuesta, no domiciliados y físicos.",
-      state: "blocked",
+      detail: !rceLoaded
+        ? "No se pudo cargar compras. La generación SIRE es conjunta con RVIE."
+        : rceHasRows
+          ? "Propuesta de compras de SUNAT cargada (solo electrónicos). Físicos, DUA y no domiciliados no vienen acá; si hay, hay que complementar en SOL."
+          : "Propuesta de compras vacía. Si hubo compras físicas o no domiciliados, hay que complementar. Esta app no las carga.",
+      state: rceLoaded ? "done" : "blocked",
     },
     {
       id: "decidir",

@@ -92,6 +92,51 @@ describe("fetchPropuesta", () => {
     expect(result.nomArchivo).toBe("LE202507.zip");
     expect(result.bytes).toEqual(zipBytes);
   });
+
+  test("rce uses exportacioncomprobantepropuesta and libro 080000", async () => {
+    const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]);
+    const calls: string[] = [];
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/oauth2/token/")) return jsonResponse({ access_token: "tok" });
+      if (url.includes("exportacioncomprobantepropuesta")) {
+        return jsonResponse({ numTicket: "C1" });
+      }
+      if (url.includes("consultaestadotickets")) {
+        return jsonResponse({
+          registros: [
+            {
+              numTicket: "C1",
+              codEstadoProceso: "06",
+              perTributario: "202507",
+              archivoReporte: [{ nomArchivoReporte: "RCE.zip", codTipoArchivoReporte: "0" }],
+            },
+          ],
+        });
+      }
+      if (url.includes("archivoreporte")) {
+        return new Response(zipBytes, {
+          status: 200,
+          headers: { "Content-Type": "application/zip" },
+        });
+      }
+      throw new Error(`unexpected url ${url}`);
+    };
+    await fetchPropuesta({
+      credentials: parseCredentials({
+        SUNAT_CLIENT_ID: "id",
+        SUNAT_CLIENT_SECRET: "secret",
+        SUNAT_RUC: "20123456789",
+        SUNAT_SOL_USER: "USER1",
+        SUNAT_SOL_PASSWORD: "pass",
+      }),
+      periodo: parsePeriodo("202507"),
+      libro: "rce",
+    });
+    expect(calls.some((u) => u.includes("exportacioncomprobantepropuesta"))).toBe(true);
+    expect(calls.some((u) => u.includes("codLibro=080000"))).toBe(true);
+  });
 });
 
 function jsonResponse(body: unknown): Response {

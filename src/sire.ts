@@ -2,7 +2,13 @@ import { oauthUsername, type Credentials } from "./credentials.ts";
 import type { Periodo } from "./periodo.ts";
 import { parseSunatTicket, type TicketState } from "./ticket.ts";
 
-const COD_LIBRO_RVIE = "140000";
+export type Libro = "rvie" | "rce";
+
+export const COD_LIBRO = {
+  rvie: "140000",
+  rce: "080000",
+} as const;
+
 const TOKEN_URL = "https://api-seguridad.sunat.gob.pe/v1/clientessol";
 const SIRE_URL = "https://api-sire.sunat.gob.pe/v1/contribuyente/migeigv/libros";
 const SCOPE = "https://api-sire.sunat.gob.pe";
@@ -30,9 +36,10 @@ const defaultClock: Clock = {
 
 export async function listPeriodos(
   credentials: Credentials,
+  libro: Libro = "rvie",
 ): Promise<unknown[]> {
   const token = await getToken(credentials);
-  const url = `${SIRE_URL}/rvierce/padron/web/omisos/${COD_LIBRO_RVIE}/periodos`;
+  const url = `${SIRE_URL}/rvierce/padron/web/omisos/${COD_LIBRO[libro]}/periodos`;
   const payload = await getJson(url, token);
   return parsePeriodosPayload(payload);
 }
@@ -40,11 +47,13 @@ export async function listPeriodos(
 export async function fetchPropuesta(input: {
   credentials: Credentials;
   periodo: Periodo;
+  libro?: Libro;
   clock?: Clock;
 }): Promise<FetchedPropuesta> {
   const clock = input.clock ?? defaultClock;
+  const libro = input.libro ?? "rvie";
   const token = await getToken(input.credentials);
-  const ticket = await startPropuesta(token, input.periodo);
+  const ticket = await startPropuesta(token, input.periodo, libro);
   const state = await pollUntilTerminal(token, ticket, input.periodo, clock);
   switch (state.kind) {
     case "ready": {
@@ -55,6 +64,7 @@ export async function fetchPropuesta(input: {
         periodo: input.periodo,
         codProceso: state.archivo.codProceso,
         numTicket: state.ticket,
+        codLibro: COD_LIBRO[libro],
       });
       return {
         kind: "file",
@@ -108,8 +118,12 @@ async function getToken(credentials: Credentials): Promise<string> {
 async function startPropuesta(
   token: string,
   periodo: Periodo,
+  libro: Libro,
 ): Promise<string> {
-  const url = `${SIRE_URL}/rvie/propuesta/web/propuesta/${periodo}/exportapropuesta?codTipoArchivo=0`;
+  const url =
+    libro === "rce"
+      ? `${SIRE_URL}/rce/propuesta/web/propuesta/${periodo}/exportacioncomprobantepropuesta?codTipoArchivo=0&codOrigenEnvio=2`
+      : `${SIRE_URL}/rvie/propuesta/web/propuesta/${periodo}/exportapropuesta?codTipoArchivo=0`;
   const payload = await getJson(url, token);
   if (!isRecord(payload)) {
     throw new SireError("propuesta response is not an object");
@@ -154,11 +168,12 @@ async function downloadReporte(input: {
   periodo: Periodo;
   codProceso?: string;
   numTicket: string;
+  codLibro: string;
 }): Promise<Uint8Array> {
   const params = new URLSearchParams({
     nomArchivoReporte: input.nomArchivoReporte,
     codTipoArchivoReporte: input.codTipoArchivoReporte,
-    codLibro: COD_LIBRO_RVIE,
+    codLibro: input.codLibro,
     perTributario: input.periodo,
     numTicket: input.numTicket,
   });

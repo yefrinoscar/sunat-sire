@@ -11,11 +11,13 @@ describe("presentacion", () => {
       periodo: "202607",
       alreadyGenerated: true,
       rvieHasRows: true,
+      rceLoaded: true,
+      rceHasRows: true,
       today: new Date(2026, 7, 20),
     });
     expect(plan.preliminarOpen).toBe(true);
     expect(plan.steps.find((s) => s.id === "generar")?.state).toBe("done");
-    expect(plan.steps.find((s) => s.id === "rce")?.state).toBe("blocked");
+    expect(plan.steps.find((s) => s.id === "rce")?.state).toBe("done");
   });
 
   test("agosto 2026 preliminar waits until 8 septiembre", () => {
