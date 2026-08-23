@@ -6,7 +6,7 @@ GET-only tooling for SUNAT SIRE RVIE ingresos: a Bun CLI, an Astro server-render
 
 ### Runtime & package manager
 
-- The package manager and runtime is **Bun** (`bun.lock`), not npm/pnpm. Bun is pre-installed in this environment (`/usr/local/bin/bun`); the startup update script runs `bun install`. Do not switch to npm/yarn/pnpm.
+- The package manager and runtime is **Bun** (`bun.lock`), not npm/pnpm. The environment install/update script bootstraps Bun (official installer → `~/.bun/bin`, symlinked to `/usr/local/bin` when possible) and then runs `bun install`. Do not switch to npm/yarn/pnpm.
 
 ### Services and how to run them
 
