@@ -1,14 +1,13 @@
-import node from "@astrojs/node";
+import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import { fileURLToPath } from "node:url";
 
-import react from "@astrojs/react";
-
 export default defineConfig({
   output: "server",
-  adapter: node({ mode: "standalone" }),
-
+  adapter: cloudflare(),
+  integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
     envDir: fileURLToPath(new URL("..", import.meta.url)),
@@ -16,6 +15,4 @@ export default defineConfig({
       fs: { allow: [".."] },
     },
   },
-
-  integrations: [react()],
 });

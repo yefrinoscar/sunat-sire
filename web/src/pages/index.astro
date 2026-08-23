@@ -1,74 +1,18 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import PeriodosView from "../components/PeriodosView";
 import { flattenPeriodos, listPeriodos, serverCredentials } from "../lib/sire.ts";
-
-const months = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 let items: ReturnType<typeof flattenPeriodos> = [];
 let error: string | undefined;
 try {
-  const credentials = serverCredentials();
+  const credentials = await serverCredentials(Astro.locals);
   items = flattenPeriodos(await listPeriodos(credentials));
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }
-const years = [...new Set(items.map((i) => i.year))];
-const current = items.find((i) => i.enCurso);
+const current = items.find((i) => i.enCurso) ?? null;
 ---
 <Layout title="SIRE · periodos">
-  <h1>Periodos RVIE</h1>
-  {error ? (
-    <p class="err">{error}</p>
-  ) : (
-    <>
-      {current ? (
-        <p class="banner">
-          Periodo en curso: <a href={`/periodo/${current.perTributario}`}>{months[Number(current.month)]} {current.year}</a>
-          <span class:list={["badge", "wait"]}>{current.labelEstado}</span>
-          — propuesta SUNAT, aún no generado
-        </p>
-      ) : null}
-      {years.map((year) => (
-        <section>
-          <h2>{year}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Periodo</th>
-                <th>Estado SIRE</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.filter((i) => i.year === year).map((i) => (
-                <tr class:list={[i.enCurso && "current"]}>
-                  <td>{months[Number(i.month)] ?? i.month} {i.year}</td>
-                  <td>
-                    <span class:list={["badge", i.presentado ? "ok" : "wait"]}>{i.labelEstado}</span>
-                  </td>
-                  <td><a href={`/periodo/${i.perTributario}`}>Ver propuesta</a></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ))}
-    </>
-  )}
+  <PeriodosView client:load items={items} current={current} error={error} />
 </Layout>
-
-<style>
-  h2 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
-  section + section { margin-top: 0.5rem; }
-  .banner {
-    background: var(--paper);
-    border: 1px solid var(--line);
-    padding: 0.8rem 1rem;
-    margin: 0 0 1.25rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-  }
-  tr.current td { background: #f3ead6; }
-</style>

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@plugin "../../hero.ts";
+@source "../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
+@custom-variant dark (&:is(.dark *));
+
+/* skip-link de accesibilidad */
+.skip-link {
+  position: fixed;
+  top: -3rem;
+  left: 1rem;
+  z-index: 3000;
+  background: #18181b;
+  color: white;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+  transition: top 120ms ease;
+}
+.skip-link:focus-visible {
+  top: 0;
+}
+
+/* barra superior indeterminada mientras se consulta a SUNAT */
+#nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  z-index: 2500;
+  pointer-events: none;
+  opacity: 0;
+}
+#nav-progress.active {
+  opacity: 1;
+}
+#nav-progress.active::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #3b5bdb, transparent);
+  animation: navslide 900ms ease-in-out infinite;
+}
+@keyframes navslide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(280%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
