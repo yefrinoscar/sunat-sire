@@ -1,7 +1,44 @@
+@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/jetbrains-mono";
+
 @import "tailwindcss";
 @plugin "../../hero.ts";
 @source "../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 @custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 40, "WONK" 0;
+}
+
+/* fondo con brillo esmeralda sutil detrás del contenido */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(52rem 26rem at 82% -8%, rgba(26, 162, 125, 0.11), transparent 62%),
+    radial-gradient(40rem 22rem at -12% 4%, rgba(239, 147, 15, 0.06), transparent 58%);
+}
+.dark .app-backdrop {
+  background:
+    radial-gradient(52rem 26rem at 82% -8%, rgba(67, 189, 151, 0.1), transparent 62%),
+    radial-gradient(40rem 22rem at -12% 4%, rgba(246, 180, 39, 0.05), transparent 58%);
+}
 
 /* skip-link de accesibilidad */
 .skip-link {
@@ -9,7 +46,7 @@
   top: -3rem;
   left: 1rem;
   z-index: 3000;
-  background: #18181b;
+  background: #0f6852;
   color: white;
   padding: 0.45rem 0.9rem;
   border-radius: 0 0 8px 8px;
@@ -40,7 +77,7 @@
   height: 100%;
   width: 40%;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, #3b5bdb, transparent);
+  background: linear-gradient(90deg, transparent, #1aa27d, #f6b427, transparent);
   animation: navslide 900ms ease-in-out infinite;
 }
 @keyframes navslide {
