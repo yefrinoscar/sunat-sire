@@ -5,12 +5,12 @@ import {
   serverCredentials,
 } from "../../../lib/sire.ts";
 
-export const GET: APIRoute = async ({ params, url }) => {
+export const GET: APIRoute = async ({ params, url, locals }) => {
   const raw = params.periodo ?? "";
   const libro = url.searchParams.get("libro") === "rce" ? "rce" : "rvie";
   try {
     const periodo = parsePeriodo(raw);
-    const credentials = serverCredentials();
+    const credentials = await serverCredentials(locals);
     const result = await fetchPropuestaCached({ credentials, periodo, libro });
     if (result.kind === "empty") {
       return new Response(JSON.stringify({ ok: false, error: "empty propuesta" }), {

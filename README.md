@@ -20,6 +20,24 @@ bun run web
 
 Open http://localhost:4321 — period list, then a period for the RVIE rows. First load of a period talks to SUNAT and can take about a minute.
 
+### Web on Cloudflare
+
+Live URL: `https://sunat-sire-web.yefri.workers.dev`
+
+Uses `@astrojs/cloudflare` with config `web/astro.config.cloudflare.mjs` and worker name from `web/wrangler.toml`. Secrets (`SUNAT_*`) live on the Worker; local dev keeps reading `.env`.
+
+```
+cd web
+bunx astro build --config astro.config.cloudflare.mjs
+bunx wrangler deploy
+```
+
+Set or rotate a secret:
+
+```
+printf '%s' "value" | bunx wrangler secret put SUNAT_CLIENT_ID
+```
+
 ## List periodos
 
 ```

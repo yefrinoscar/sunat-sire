@@ -1,11 +1,11 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import PeriodoView from "../../components/PeriodoView";
 import {
   buildPresentationPlan,
   fetchPropuestaCached,
   flattenPeriodos,
   listPeriodos,
-  money,
   parsePeriodo,
   parseRceZip,
   parseRvieZip,
@@ -13,7 +13,6 @@ import {
   shiftPeriodo,
   summarizeRce,
   summarizeRvie,
-  tipoLabel,
 } from "../../lib/sire.ts";
 
 const raw = Astro.params.periodo ?? "";
@@ -30,7 +29,7 @@ let alreadyGenerated = false;
 try {
   const periodo = parsePeriodo(raw);
   title = `${months[Number(raw.slice(4, 6))] ?? raw} ${raw.slice(0, 4)}`;
-  const credentials = serverCredentials();
+  const credentials = await serverCredentials(Astro.locals);
   const [listedRaw, ventasResult, comprasResult] = await Promise.all([
     listPeriodos(credentials),
     fetchPropuestaCached({ credentials, periodo, libro: "rvie" }),
@@ -51,8 +50,9 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-const kpis = table ? summarizeRvie(table.rows) : undefined;
-const comprasKpis = compras ? summarizeRce(compras.rows) : undefined;
+const kpis = table ? summarizeRvie(table.rows) : null;
+const comprasKpis = compras ? summarizeRce(compras.rows) : null;
+
 const plan = /^\d{6}$/.test(raw)
   ? buildPresentationPlan({
       periodo: raw,
@@ -61,9 +61,10 @@ const plan = /^\d{6}$/.test(raw)
       rceLoaded,
       rceHasRows: (compras?.rows.length ?? 0) > 0,
     })
-  : undefined;
-const prev = /^\d{6}$/.test(raw) ? shiftPeriodo(raw, -1) : undefined;
-let next: string | undefined;
+  : null;
+
+const prev = /^\d{6}$/.test(raw) ? shiftPeriodo(raw, -1) : null;
+let next: string | null = null;
 if (/^\d{6}$/.test(raw)) {
   const candidate = shiftPeriodo(raw, 1);
   const now = new Date();
@@ -72,235 +73,19 @@ if (/^\d{6}$/.test(raw)) {
 }
 ---
 <Layout title={`SIRE · ${title}`}>
-  <p class="meta nav">
-    <a href="/">← Periodos</a>
-    {prev ? <a href={`/periodo/${prev}`}>← {prev}</a> : null}
-    {next ? <a href={`/periodo/${next}`}>{next} →</a> : <span>mes en curso</span>}
-  </p>
-  <h1>{title}</h1>
-  {plan ? (
-    <section class="presentar">
-      <h2>Para presentar</h2>
-      <p>
-        Esta pantalla no envía nada a SUNAT. “Presentar” en SIRE no es el IGV:
-        es generar el RVIE y el RCE. Si aceptás la propuesta, esos comprobantes
-        quedan en el libro. Después el 621 usa las casillas.
-      </p>
-      <ol>
-        {plan.steps.map((step) => (
-          <li class={step.state}>
-            <strong>{step.title}</strong>
-            <span class="st">{step.state === "done" ? "listo" : step.state === "later" ? "aún no" : step.state === "ready" ? "pendiente" : "falta"}</span>
-            <p>{step.detail}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  ) : null}
-  {error ? (
-    <p class="err">{error}</p>
-  ) : !table && !compras ? (
-    <p>SUNAT no devolvió comprobantes de ventas ni compras para este periodo.{emptyTicket ? ` Ticket ${emptyTicket}.` : ""}</p>
-  ) : (
-    <>
-      {kpis ? (
-      <section class="kpis">
-        <article>
-          <h2>Facturas</h2>
-          <p class="big">{kpis.facturas.count}</p>
-          <p>{money(kpis.facturas.total)}</p>
-        </article>
-        <article>
-          <h2>Boletas</h2>
-          <p class="big">{kpis.boletas.count}</p>
-          <p>{money(kpis.boletas.total)}</p>
-        </article>
-        <article>
-          <h2>N. crédito</h2>
-          <p class="big">{kpis.notasCredito.count}</p>
-          <p>{money(kpis.notasCredito.total)}</p>
-        </article>
-        <article>
-          <h2>N. débito</h2>
-          <p class="big">{kpis.notasDebito.count}</p>
-          <p>{money(kpis.notasDebito.total)}</p>
-        </article>
-        <article>
-          <h2>BI gravada (cas. 100)</h2>
-          <p class="big">{money(kpis.netoBi)}</p>
-          <p>bruta {money(kpis.bi)} · NC −{money(kpis.notasCredito.bi)}</p>
-        </article>
-        <article>
-          <h2>IGV (cas. 101)</h2>
-          <p class="big">{money(kpis.netoIgv)}</p>
-          <p>neto a declarar {money(kpis.netoTotal)}</p>
-        </article>
-      </section>
-      ) : null}
-      {kpis && (kpis.exonerado > 0 || kpis.inafecto > 0 || kpis.exportacion > 0) ? (
-        <p class="meta">
-          Exonerado {money(kpis.exonerado)} · inafecto {money(kpis.inafecto)} · exportación {money(kpis.exportacion)}
-        </p>
-      ) : null}
-      <p class="meta">
-        {kpis ? `${kpis.count} ventas` : "sin ventas"}
-        · <a href={`/periodo/${raw}/zip`}>ZIP ventas</a>
-        {compras ? (
-          <>
-            · {compras.rows.length} compras
-            · <a href={`/periodo/${raw}/zip?libro=rce`}>ZIP compras</a>
-          </>
-        ) : null}
-      </p>
-      {compras && comprasKpis ? (
-        <section class="kpis">
-          <article>
-            <h2>Compras facturas</h2>
-            <p class="big">{comprasKpis.facturas}</p>
-            <p>crédito fiscal (IGV neto) {money(comprasKpis.igv)}</p>
-          </article>
-          <article>
-            <h2>Compras boletas</h2>
-            <p class="big">{comprasKpis.boletas}</p>
-          </article>
-          <article>
-            <h2>BI compras</h2>
-            <p class="big">{money(comprasKpis.bi)}</p>
-            <p>total {money(comprasKpis.total)}</p>
-          </article>
-        </section>
-      ) : null}
-      {table ? (
-      <>
-      <h2 class="block">Ventas (RVIE)</h2>
-      <div class="wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Serie</th>
-              <th>N°</th>
-              <th>Cliente</th>
-              <th>Doc</th>
-              <th>BI</th>
-              <th>IGV</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((r) => (
-              <tr>
-                <td>{r.fecha}</td>
-                <td>{tipoLabel(r.tipo)}</td>
-                <td>{r.serie}</td>
-                <td>{r.numero}</td>
-                <td>{r.cliente}</td>
-                <td class="num">{r.doc}</td>
-                <td class="num">{r.bi}</td>
-                <td class="num">{r.igv}</td>
-                <td class="num">{r.total} {r.moneda}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      </>
-      ) : null}
-      {compras ? (
-        <>
-          <h2 class="block">Compras (RCE)</h2>
-          <div class="wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tipo</th>
-                  <th>Serie</th>
-                  <th>N°</th>
-                  <th>Proveedor</th>
-                  <th>Doc</th>
-                  <th>BI</th>
-                  <th>IGV</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compras.rows.map((r) => (
-                  <tr>
-                    <td>{r.fecha}</td>
-                    <td>{tipoLabel(r.tipo)}</td>
-                    <td>{r.serie}</td>
-                    <td>{r.numero}</td>
-                    <td>{r.proveedor}</td>
-                    <td class="num">{r.doc}</td>
-                    <td class="num">{r.bi}</td>
-                    <td class="num">{r.igv}</td>
-                    <td class="num">{r.total} {r.moneda}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : null}
-    </>
-  )}
+  <PeriodoView
+    client:load
+    raw={raw}
+    title={title}
+    alreadyGenerated={alreadyGenerated}
+    prev={prev}
+    next={next}
+    error={error}
+    emptyTicket={emptyTicket}
+    plan={plan}
+    kpis={kpis}
+    comprasKpis={comprasKpis}
+    ventasRows={table?.rows ?? []}
+    comprasRows={compras?.rows ?? []}
+  />
 </Layout>
-
-<style>
-  .nav { display: flex; gap: 1rem; }
-  .kpis {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 0.7rem;
-    margin: 0 0 1rem;
-  }
-  .kpis article {
-    background: var(--paper);
-    border: 1px solid var(--line);
-    padding: 0.75rem 0.85rem;
-  }
-  .kpis h2 {
-    margin: 0;
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .kpis .big {
-    margin: 0.25rem 0 0.15rem;
-    font-size: 1.25rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .kpis p { margin: 0; color: var(--muted); font-size: 0.85rem; }
-  .wrap { overflow-x: auto; }
-  table { min-width: 900px; }
-  h2.block { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
-  .presentar {
-    background: var(--paper);
-    border: 1px solid var(--line);
-    padding: 1rem 1.1rem;
-    margin: 0 0 1.25rem;
-  }
-  .presentar h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
-  .presentar > p { margin: 0 0 0.8rem; color: var(--muted); }
-  .presentar ol { margin: 0; padding: 0; list-style: none; }
-  .presentar li {
-    border-top: 1px solid var(--line);
-    padding: 0.65rem 0;
-  }
-  .presentar li strong { display: inline; }
-  .presentar .st {
-    margin-left: 0.5rem;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
-  .presentar li.done .st { color: var(--ok); }
-  .presentar li.later .st { color: var(--wait); }
-  .presentar li p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.92rem; }
-</style>
-

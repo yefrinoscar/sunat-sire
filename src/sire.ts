@@ -15,6 +15,33 @@ const SCOPE = "https://api-sire.sunat.gob.pe";
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const POLL_DELAY_START_MS = 2000;
 const POLL_DELAY_CAP_MS = 15000;
+const RATE_LIMIT_MAX_ATTEMPTS = 3;
+const RATE_LIMIT_BACKOFF_START_MS = 400;
+const TOKEN_EXPIRY_MARGIN_MS = 60_000;
+const MAX_CONCURRENT_REQUESTS = 2;
+
+type CachedToken = { token: string; expiresAt: number };
+const tokenCache = new Map<string, CachedToken>();
+
+class Gate {
+  #active = 0;
+  #waiters: (() => void)[] = [];
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.#active >= MAX_CONCURRENT_REQUESTS) {
+      await new Promise<void>((resolve) => this.#waiters.push(resolve));
+    }
+    this.#active++;
+    try {
+      return await fn();
+    } finally {
+      this.#active--;
+      this.#waiters.shift()?.();
+    }
+  }
+}
+
+const sunatGate = new Gate();
 
 export type FetchedPropuesta =
   | { kind: "file"; bytes: Uint8Array; nomArchivo: string; ticket: string }
@@ -22,6 +49,10 @@ export type FetchedPropuesta =
 
 export class SireError extends Error {
   override readonly name = "SireError";
+}
+
+export function resetTokenCache(): void {
+  tokenCache.clear();
 }
 
 export type Clock = {
@@ -89,6 +120,10 @@ export async function fetchPropuesta(input: {
 }
 
 async function getToken(credentials: Credentials): Promise<string> {
+  const cached = tokenCache.get(credentials.clientId);
+  if (cached && cached.expiresAt > Date.now() + TOKEN_EXPIRY_MARGIN_MS) {
+    return cached.token;
+  }
   const url = `${TOKEN_URL}/${encodeURIComponent(credentials.clientId)}/oauth2/token/`;
   const body = new URLSearchParams({
     grant_type: "password",
@@ -98,7 +133,7 @@ async function getToken(credentials: Credentials): Promise<string> {
     username: oauthUsername(credentials),
     password: credentials.solPassword,
   });
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -112,7 +147,40 @@ async function getToken(credentials: Credentials): Promise<string> {
   if (!isRecord(payload) || typeof payload.access_token !== "string") {
     throw new SireError("token response missing access_token");
   }
+  const expiresIn =
+    typeof payload.expires_in === "number" && payload.expires_in > 0
+      ? payload.expires_in
+      : 3600;
+  tokenCache.set(credentials.clientId, {
+    token: payload.access_token,
+    expiresAt: Date.now() + expiresIn * 1000,
+  });
   return payload.access_token;
+}
+
+async function fetchWithRetry(
+  url: string | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  let backoff = RATE_LIMIT_BACKOFF_START_MS;
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_ATTEMPTS) {
+      if (res.status === 429) {
+        throw new SireError(
+          "SUNAT rate limit (HTTP 429) after retries. Wait a minute and reload.",
+        );
+      }
+      return res;
+    }
+    const retryAfter = Number(res.headers.get("retry-after"));
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : backoff;
+    await defaultClock.sleep(waitMs);
+    backoff *= 2;
+  }
 }
 
 async function startPropuesta(
@@ -181,9 +249,9 @@ async function downloadReporte(input: {
     params.set("codProceso", input.codProceso);
   }
   const url = `${SIRE_URL}/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte?${params}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${input.token}` },
-  });
+  const res = await sunatGate.run(() =>
+    fetchWithRetry(url, { headers: { Authorization: `Bearer ${input.token}` } }),
+  );
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.toLowerCase().includes("json")) {
     const body = await res.text();
@@ -198,13 +266,15 @@ async function downloadReporte(input: {
 }
 
 async function getJson(url: string, token: string): Promise<unknown> {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-  });
+  const res = await sunatGate.run(() =>
+    fetchWithRetry(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    }),
+  );
   const payload = await readJson(res);
   if (!res.ok) {
     throw new SireError(
@@ -238,7 +308,7 @@ async function readJson(res: Response): Promise<unknown> {
         "SUNAT nginx 401 on api-sire. Token is valid. Check Alcance Desktop on the MIGE app and Save.",
       );
     }
-    throw new SireError(`invalid JSON from SUNAT (HTTP ${res.status})`);
+    throw new SireError(`invalid JSON from SUNAT (HTTP ${res.status}). ${res.status === 429 ? "Rate limited: wait a minute and reload." : ""}`.trim());
   }
 }
 

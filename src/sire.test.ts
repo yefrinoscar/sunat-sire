@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parseCredentials } from "./credentials.ts";
 import { parsePeriodo } from "./periodo.ts";
-import { fetchPropuesta } from "./sire.ts";
+import { fetchPropuesta, listPeriodos, resetTokenCache } from "./sire.ts";
 
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  resetTokenCache();
 });
 
 describe("parseCredentials", () => {
@@ -136,6 +137,58 @@ describe("fetchPropuesta", () => {
     });
     expect(calls.some((u) => u.includes("exportacioncomprobantepropuesta"))).toBe(true);
     expect(calls.some((u) => u.includes("codLibro=080000"))).toBe(true);
+  });
+});
+
+describe("rate limit", () => {
+  test("429 on token endpoint retries and succeeds", async () => {
+    let tokenCalls = 0;
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/oauth2/token/")) {
+        tokenCalls++;
+        if (tokenCalls === 1) {
+          return new Response("too many requests", { status: 429 });
+        }
+        return jsonResponse({ access_token: "tok-retry" });
+      }
+      if (url.includes("/periodos")) return jsonResponse({ registros: [] });
+      throw new Error(`unexpected url ${url}`);
+    };
+    const periodos = await listPeriodos(
+      parseCredentials({
+        SUNAT_CLIENT_ID: "id",
+        SUNAT_CLIENT_SECRET: "secret",
+        SUNAT_RUC: "20123456789",
+        SUNAT_SOL_USER: "USER1",
+        SUNAT_SOL_PASSWORD: "pass",
+      }),
+    );
+    expect(tokenCalls).toBe(2);
+    expect(Array.isArray(periodos)).toBe(true);
+  });
+
+  test("token is cached per client", async () => {
+    let tokenCalls = 0;
+    globalThis.fetch = async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/oauth2/token/")) {
+        tokenCalls++;
+        return jsonResponse({ access_token: "tok-cache", expires_in: 3600 });
+      }
+      if (url.includes("/periodos")) return jsonResponse({ registros: [] });
+      throw new Error(`unexpected url ${url}`);
+    };
+    const credentials = parseCredentials({
+      SUNAT_CLIENT_ID: "id",
+      SUNAT_CLIENT_SECRET: "secret",
+      SUNAT_RUC: "20123456789",
+      SUNAT_SOL_USER: "USER1",
+      SUNAT_SOL_PASSWORD: "pass",
+    });
+    await listPeriodos(credentials);
+    await listPeriodos(credentials);
+    expect(tokenCalls).toBe(1);
   });
 });
 

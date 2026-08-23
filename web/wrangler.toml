@@ -1,0 +1,4 @@
+name = "sunat-sire-web"
+compatibility_date = "2026-08-20"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
