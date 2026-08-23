@@ -24,12 +24,11 @@ Open http://localhost:4321 — period list, then a period for the RVIE rows. Fir
 
 Live URL: `https://sunat-sire-web.yefri.workers.dev`
 
-Uses `@astrojs/cloudflare` with config `web/astro.config.cloudflare.mjs` and worker name from `web/wrangler.toml`. Secrets (`SUNAT_*`) live on the Worker; local dev keeps reading `.env`.
+Uses `@astrojs/cloudflare` (`web/astro.config.cloudflare.mjs`). Worker name is `sunat-sire-web` in root `wrangler.jsonc`. Secrets (`SUNAT_*`) live on the Worker; local dev keeps reading `.env`.
 
 ```
-cd web
-bunx astro build --config astro.config.cloudflare.mjs
-bunx wrangler deploy
+bun run build:web
+bun run deploy:web
 ```
 
 Set or rotate a secret:
@@ -37,6 +36,25 @@ Set or rotate a secret:
 ```
 printf '%s' "value" | bunx wrangler secret put SUNAT_CLIENT_ID
 ```
+
+### Automatic deploys (GitHub → Cloudflare)
+
+Two ways, pick one (not both, or every push deploys twice).
+
+**Workers Builds (Cloudflare Git integration)** — connect the repo once in the dashboard, no GitHub secret needed:
+
+1. Open [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) → **sunat-sire-web** → **Settings** → **Builds** → **Connect**.
+2. Authorize GitHub and select **yefrinoscar/sunat-sire**.
+3. Production branch: `main`. Leave **Root directory** empty (repo root).
+4. Build command: `bun run build:web`
+5. Deploy command: `bun run deploy:web`
+6. Non-production deploy (optional): `bun run deploy:web:preview`
+7. Build variable: `BUN_VERSION` = `1.4.0`
+8. Save. The next push to `main` builds and publishes `https://sunat-sire-web.yefri.workers.dev`.
+
+The Worker name in the dashboard must stay `sunat-sire-web` — it has to match `wrangler.jsonc`.
+
+**GitHub Actions** — already in `.github/workflows/deploy-web.yml`. Add a repo secret `CLOUDFLARE_API_TOKEN` (template **Edit Cloudflare Workers**) and optionally `CLOUDFLARE_ACCOUNT_ID`. Pushes to `main` and **Actions → Deploy web → Run workflow** both deploy.
 
 ## List periodos
 

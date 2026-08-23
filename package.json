@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.4.0",
   "scripts": {
     "start": "bun src/cli.ts",
     "test": "bun test",
-    "web": "astro dev --root web --port 4321 --host"
+    "web": "astro dev --root web --port 4321 --host",
+    "build:web": "astro build --root web --config astro.config.cloudflare.mjs",
+    "deploy:web": "wrangler deploy --keep-vars",
+    "deploy:web:preview": "wrangler versions upload --keep-vars",
+    "deploy:api": "wrangler deploy --config wrangler.api.toml --keep-vars"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.3",
@@ -28,6 +33,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "daisyui": "^5.7.20",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "wrangler": "^4.125.0"
   }
 }
