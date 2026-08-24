@@ -13,9 +13,10 @@ The **primary app** is the web UI (`web/`): period list, RVIE/RCE propuesta, cas
 ### Services and how to run them
 
 - **Tests** — `bun test`. This is the canonical verification command (there is no separate lint script). Tests mock `fetch`, so they run fully offline and need no credentials.
-- **Web UI (primary app)** — `bun run web` serves SSR on http://localhost:4321 (`astro dev --root web`). Stack: Astro 7 + `@astrojs/react` + HeroUI + Tailwind. Local adapter is `@astrojs/node`; production is `@astrojs/cloudflare` via `web/astro.config.cloudflare.mjs` and `web/wrangler.toml` (worker name `sunat-sire-web`). Astro/Vite loads env from the repo-root `.env` at server start (`vite.envDir` is the repo root), so **restart the dev server to pick up `.env` changes**. Without valid credentials the page renders a graceful error box instead of period data — that is expected, not a crash.
+- **Web UI (primary app)** — `bun run web` serves SSR on http://localhost:4321 (`astro dev --root web`). Stack: Astro 7 + `@astrojs/react` + HeroUI + Tailwind. Local adapter is `@astrojs/node`; production is `@astrojs/cloudflare` via `web/astro.config.cloudflare.mjs`. Production Worker name is `sunat-sire-web` in root `wrangler.jsonc` (`bun run build:web` then `bun run deploy:web`). Astro/Vite loads env from the repo-root `.env` at server start (`vite.envDir` is the repo root), so **restart the dev server to pick up `.env` changes**. Without valid credentials the page renders a graceful error box instead of period data — that is expected, not a crash.
 - **CLI** — `bun src/cli.ts periodos` and `bun src/cli.ts propuesta --periodo YYYYMM`. Reads credentials from `.env` / `process.env`.
-- **API Worker** — entry `src/worker.ts` (config `wrangler.toml`, live `https://sunat-sire.yefri.workers.dev`). `wrangler` is intentionally **not** a project dependency; to run it locally, invoke it on demand with `bunx wrangler dev`. The Worker's routing/auth logic is covered by `bun test` (`src/worker.test.ts`).
+- **API Worker** — entry `src/worker.ts` (config `wrangler.api.toml`, live `https://sunat-sire.yefri.workers.dev`). Deploy with `bun run deploy:api`. Routing/auth logic is covered by `bun test` (`src/worker.test.ts`).
+- **CI / auto-deploy** — `.github/workflows/deploy-web.yml` publishes `sunat-sire-web` on push to `main` when `CLOUDFLARE_API_TOKEN` is set as a GitHub Actions secret. The same worker can instead use Cloudflare Workers Builds (dashboard → sunat-sire-web → Settings → Builds → Connect Git). Do not enable both.
 
 ### Credentials / external dependency
 
